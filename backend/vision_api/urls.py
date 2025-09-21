@@ -1,7 +1,5 @@
 from django.urls import path
-from .views import (VideoStreamView, SquareDetectionView, InstrumentConfigView, 
-                    ParseNotesView, GenerateLessonView, WrongNoteHandlerView, 
-                    DemoModeView, ProgressTrackingView, ParsePdfNotesView, PdfImageView, AutoParsePdfView)
+from .views import VideoStreamView, SquareDetectionView, InstrumentConfigView, ParseNotesView, GenerateLessonView, WrongNoteHandlerView, DemoModeView, ProgressTrackingView, ThresholdDebugView, ParsePdfNotesView, PdfImageView, AutoParsePdfView
 
 app_name = 'vision_api'
 
@@ -17,4 +15,5 @@ urlpatterns = [
     path('parse-pdf-notes/', ParsePdfNotesView.as_view(), name='parse-pdf-notes'),
     path('pdf-image/', PdfImageView.as_view(), name='pdf-image'),
     path('auto-parse-pdf/', AutoParsePdfView.as_view(), name='auto-parse-pdf'),
+    path('threshold-debug/', ThresholdDebugView.as_view(), name='threshold-debug'),
 ]
