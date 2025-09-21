@@ -293,3 +293,33 @@ class ProgressTrackingView(APIView):
                 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ThresholdDebugView(APIView):
+    """Stream threshold debug view to help with detection tuning"""
+    
+    def get(self, request):
+        return StreamingHttpResponse(
+            self.generate_threshold_frames(),
+            content_type='multipart/x-mixed-replace; boundary=frame'
+        )
+    
+    def generate_threshold_frames(self):
+        cap = cv2.VideoCapture(0)
+        
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # Get threshold debug image
+            _, _, _, thresh_debug = detector.process_frame(frame)
+            
+            # Convert threshold image to 3-channel for JPEG encoding
+            thresh_color = cv2.cvtColor(thresh_debug, cv2.COLOR_GRAY2BGR)            
+            # Convert frame to JPEG
+            _, buffer = cv2.imencode('.jpg', thresh_color)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
