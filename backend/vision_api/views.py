@@ -13,7 +13,83 @@ import numpy as np
 from .cv_processor import SquareDetector
 
 # Global detector instance
+piano_detector = SquareDetector(instrument_type="piano")
+drum_detector = SquareDetector(instrument_type="drums") 
+flute_detector = SquareDetector(instrument_type="flute")
 detector = SquareDetector()
+
+class PianoStreamView(APIView):
+    """Piano-specific video stream"""
+    def get(self, request):
+        return StreamingHttpResponse(
+            self.generate_piano_frames(), 
+            content_type='multipart/x-mixed-replace; boundary=frame'
+        )
+    
+    def generate_piano_frames(self):
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            processed_frame, squares, touches, thresh_debug = piano_detector.process_frame(frame)
+            
+            # Convert frame to JPEG
+            _, buffer = cv2.imencode('.jpg', processed_frame)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+
+class DrumStreamView(APIView):
+    """Drum-specific video stream"""
+    def get(self, request):
+        return StreamingHttpResponse(
+            self.generate_drum_frames(), 
+            content_type='multipart/x-mixed-replace; boundary=frame'
+        )
+    
+    def generate_drum_frames(self):
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            processed_frame, squares, touches, thresh_debug = drum_detector.process_frame(frame)
+            
+            # Convert frame to JPEG
+            _, buffer = cv2.imencode('.jpg', processed_frame)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+class FluteStreamView(APIView):
+    """Flute-specific video stream"""
+    def get(self, request):
+        return StreamingHttpResponse(
+            self.generate_flute_frames(), 
+            content_type='multipart/x-mixed-replace; boundary=frame'
+        )
+    
+    def generate_flute_frames(self):
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            processed_frame, squares, touches, thresh_debug = flute_detector.process_frame(frame)
+            
+            # Convert frame to JPEG
+            _, buffer = cv2.imencode('.jpg', processed_frame)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
 class VideoStreamView(APIView):
     """Stream video feed with square detection"""
@@ -89,53 +165,44 @@ class SquareDetectionView(APIView):
             )
 
 class InstrumentConfigView(APIView):
-    """Configure instrument mappings for shapes"""
-    
+    """Configure different instruments"""
     def post(self, request):
         try:
-            config_data = request.data
-            # Here you would save configuration to database
-            # For now, just return success
+            instrument_type = request.data.get('instrument', 'piano')
+            scale = request.data.get('scale', 'major')
+            
+            # Configure the appropriate detector
+            if instrument_type == 'piano':
+                piano_detector.set_custom_scale(scale)
+            elif instrument_type == 'drums':
+                drum_detector.set_custom_scale(scale)
+            elif instrument_type == 'flute':
+                flute_detector.set_custom_scale(scale)
             
             return Response({
-                'message': 'Instrument configuration saved',
-                'config': config_data
+                'message': f'{instrument_type.title()} configured with {scale} scale',
+                'instrument': instrument_type,
+                'scale': scale
             }, status=status.HTTP_200_OK)
             
-        except Exception as e:
-            return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def get(self, request):
-        # Return current instrument configuration
-        default_config = {
-            'square': {
-                'instrument': 'piano',
-                'notes': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
-                'sound_enabled': True
-            }
-        }
-        
-        return Response(default_config, status=status.HTTP_200_OK)
-
-class ParseNotesView(APIView):
-    def post(self, request):
-        url = request.data.get('url')
-        if not url:
-            return Response({'error': 'URL is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            parsed_notes = parse_letter_notes_from_url(url)
-            shapes = map_notes_to_shapes(parsed_notes)
-            
-            return Response({
-                'parsed_notes': parsed_notes,
-                'shapes': shapes
-            }, status=status.HTTP_200_OK)
-
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def get(self, request):
+        """Get available instruments and their configurations"""
+        return Response({
+            'available_instruments': [
+                {'value': 'piano', 'label': '🎹 Piano', 'description': 'Classic piano with harmonic tones'},
+                {'value': 'drums', 'label': '🥁 Drums', 'description': 'Percussion kit with kick, snare, hi-hat, toms'},
+                {'value': 'flute', 'label': '🪈 Flute', 'description': 'Woodwind with pure, breathy tones'}
+            ],
+            'available_scales': ['major', 'pentatonic', 'blues', 'minor', 'fourths', 'simple'],
+            'current_configurations': {
+                'piano': {'scale': ' '.join(piano_detector.available_notes)},
+                'drums': {'scale': ' '.join(drum_detector.available_notes)},
+                'flute': {'scale': ' '.join(flute_detector.available_notes)}
+            }
+        }, status=status.HTTP_200_OK)
 
 class GenerateLessonView(APIView):
     """Generate lesson plans based on parsed notes and shapes"""
