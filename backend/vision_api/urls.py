@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import VideoStreamView, SquareDetectionView, InstrumentConfigView, ParseNotesView, GenerateLessonView, WrongNoteHandlerView, DemoModeView, ProgressTrackingView, ThresholdDebugView, ParsePdfNotesView, PdfImageView, AutoParsePdfView, PianoStreamView, DrumStreamView, FluteStreamView
+from .views import VideoStreamView, SquareDetectionView, InstrumentConfigView, ParsePdfNotesView, GenerateLessonView, WrongNoteHandlerView, DemoModeView, ProgressTrackingView, ThresholdDebugView, ParsePdfNotesView, PdfImageView, AutoParsePdfView, PianoStreamView, DrumStreamView, FluteStreamView
 
 app_name = 'visionapi'
 
