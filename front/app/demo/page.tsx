@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Camera, Play, Pause, Volume2, Settings, BookOpen, Music, MessageSquare } from "lucide-react"
+import { Camera, Play, Pause, Volume2, Settings, BookOpen, Music, MessageSquare, Video, VideoOff } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -39,7 +39,12 @@ export default function DemoPage() {
   const [currentLesson, setCurrentLesson] = useState("Mary Had A Little Lamb")
   const [nextNotes, setNextNotes] = useState(["C", "D", "E", "F"])
   const [aiFeedback, setAiFeedback] = useState("Great job! You're playing the notes correctly. Keep up the rhythm!")
+  
+  // Camera and streaming refs
   const videoRef = useRef<HTMLVideoElement>(null)
+  const streamImgRef = useRef<HTMLImageElement>(null)
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
   const router = useRouter()
 
   const instruments = [
@@ -62,47 +67,111 @@ export default function DemoPage() {
 
   const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
-  // Simulate camera access
-  useEffect(() => {
-    const requestCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
+  // Camera access function
+  const requestCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 },
+          facingMode: "user"
         }
-        setCameraPermission("granted")
-      } catch (error) {
-        setCameraPermission("denied")
+      })
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+      
+      setCameraStream(stream)
+      setCameraPermission("granted")
+      setCameraEnabled(true)
+      
+    } catch (error) {
+      console.error("Camera access denied:", error)
+      setCameraPermission("denied")
+      setCameraEnabled(false)
+    }
+  }
+
+  // Start Django video stream
+  const startVideoStream = () => {
+    if (streamImgRef.current) {
+      // Connect to Django video-stream endpoint
+      streamImgRef.current.src = `http://localhost:8000/api/video-stream/?t=${Date.now()}`
+      setIsStreaming(true)
+      
+      // Handle stream errors
+      streamImgRef.current.onerror = () => {
+        console.warn("Django video stream not available, using local camera only")
+      }
+      
+      streamImgRef.current.onload = () => {
+        console.log("Django video stream connected successfully")
       }
     }
+  }
 
-    if (isPlaying) {
-      requestCamera()
+  // Stop camera and streaming
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop())
+      setCameraStream(null)
     }
-  }, [isPlaying])
+    setCameraEnabled(false)
+    setIsStreaming(false)
+    
+    if (streamImgRef.current) {
+      streamImgRef.current.src = ""
+    }
+  }
 
-  // Simulate note detection
-  useEffect(() => {
-    if (!isPlaying) return
-
+  // Note detection simulation
+  const startNoteDetection = () => {
     const interval = setInterval(() => {
       // Simulate random note detection
-      const randomNotes = Array.from({ length: Math.floor(Math.random() * 3) + 1 }, () =>
-        Math.floor(Math.random() * 12),
+      const randomNotes = Array.from(
+        { length: Math.floor(Math.random() * 3) + 1 }, 
+        () => Math.floor(Math.random() * 12)
       )
       setActiveNotes(randomNotes)
-
+      
       // Clear notes after a short duration
       setTimeout(() => setActiveNotes([]), 500)
     }, 1500)
 
-    return () => clearInterval(interval)
-  }, [isPlaying])
+    // Store interval ID for cleanup
+    ;(window as any).noteDetectionInterval = interval
+  }
 
-  const togglePlaying = () => {
-    setIsPlaying(!isPlaying)
+  const stopNoteDetection = () => {
+    if ((window as any).noteDetectionInterval) {
+      clearInterval((window as any).noteDetectionInterval)
+      ;(window as any).noteDetectionInterval = null
+    }
+  }
+
+  // Enhanced togglePlaying function with camera integration
+  const togglePlaying = async () => {
     if (!isPlaying) {
+      // Start demo: activate camera and video stream
+      try {
+        await requestCamera()
+        startVideoStream()
+        setIsPlaying(true)
+        
+        // Start note detection simulation
+        startNoteDetection()
+        
+      } catch (error) {
+        console.error("Failed to start demo:", error)
+        alert("Failed to start camera. Please check permissions and try again.")
+      }
+    } else {
+      // Stop demo: stop camera and clear notes
+      stopCamera()
+      setIsPlaying(false)
       setActiveNotes([])
+      stopNoteDetection()
     }
   }
 
@@ -123,6 +192,14 @@ export default function DemoPage() {
     console.log("Parsing song from URL:", songUrl)
     setAiFeedback("Analyzing sheet music... Please wait while we process the notes.")
   }
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      stopCamera()
+      stopNoteDetection()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-background">
@@ -152,13 +229,10 @@ export default function DemoPage() {
 
       <div className="container mx-auto py-8 px-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">🎵 Live Demo - Three Column Layout 🎵</h1>
+          <h1 className="text-3xl font-bold mb-2">🎵 Live Demo - Interactive Piano Learning</h1>
           <p className="text-muted-foreground">
-            Experience real-time paper-to-MIDI conversion with visual feedback and multiple instrument sounds.
+            Experience real-time computer vision piano learning with AI-powered feedback
           </p>
-          <div className="mt-4 p-4 bg-red-100 border border-red-300 rounded-lg">
-            <p className="text-red-800 font-bold text-lg">🚨 THREE COLUMN LAYOUT - LEFT | MIDDLE | RIGHT 🚨</p>
-          </div>
         </div>
 
         {/* THREE COLUMN LAYOUT */}
@@ -166,9 +240,6 @@ export default function DemoPage() {
           
           {/* LEFT COLUMN - Controls (3/12 columns) */}
           <div className="lg:col-span-3 space-y-6">
-            <div className="p-4 bg-blue-100 border border-blue-300 rounded-lg">
-              <p className="text-blue-800 font-bold">LEFT COLUMN - CONTROLS</p>
-            </div>
             
             {/* Instrument Selection */}
             <Card>
@@ -209,7 +280,12 @@ export default function DemoPage() {
                 <CardDescription>Start or stop the live demo and control volume</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button onClick={togglePlaying} className="w-full" variant={isPlaying ? "destructive" : "default"}>
+                <Button 
+                  onClick={togglePlaying} 
+                  className="w-full" 
+                  variant={isPlaying ? "destructive" : "default"}
+                  disabled={cameraPermission === "pending"}
+                >
                   {isPlaying ? (
                     <>
                       <Pause className="h-4 w-4 mr-2" />
@@ -252,36 +328,38 @@ export default function DemoPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="camera-toggle">Enable Camera</Label>
-                    <Switch id="camera-toggle" checked={cameraEnabled} onCheckedChange={setCameraEnabled} />
+                    <Switch
+                      id="camera-toggle"
+                      checked={cameraEnabled}
+                      onCheckedChange={setCameraEnabled}
+                      disabled={isPlaying}
+                    />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="sensitivity">Detection Sensitivity</Label>
-                    <Badge variant="outline">Medium</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="resolution">Camera Resolution</Label>
-                    <Badge variant="outline">1080p</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="framerate">Frame Rate</Label>
-                    <Badge variant="outline">30 FPS</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="quality">Video Quality</Label>
-                    <Badge variant="outline">High</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="stabilization">Image Stabilization</Label>
-                    <Badge variant="outline">On</Badge>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Button className="w-full" variant="outline">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Customize your layout! <span className="text-red-500 font-bold ml-1">**ADVANCED**</span>
-                  </Button>
-                  <div className="text-xs text-muted-foreground text-center">
-                    More camera settings available in advanced mode
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {isStreaming ? (
+                        <Video className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <VideoOff className="h-4 w-4 text-gray-400" />
+                      )}
+                      <span className="text-sm">
+                        Stream: {isStreaming ? "Connected" : "Disconnected"}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${
+                        cameraPermission === "granted" ? "bg-green-500" : 
+                        cameraPermission === "denied" ? "bg-red-500" : "bg-yellow-500"
+                      }`} />
+                      <span className="text-sm">
+                        Camera: {
+                          cameraPermission === "granted" ? "Ready" : 
+                          cameraPermission === "denied" ? "Denied" : "Pending"
+                        }
+                      </span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -290,9 +368,6 @@ export default function DemoPage() {
 
           {/* MIDDLE COLUMN - Lessons (3/12 columns) */}
           <div className="lg:col-span-3 space-y-6">
-            <div className="p-4 bg-green-100 border border-green-300 rounded-lg">
-              <p className="text-green-800 font-bold">MIDDLE COLUMN - LESSONS</p>
-            </div>
             
             {/* Lead Zeppelin Lessons */}
             <Card className="h-[400px]">
@@ -361,9 +436,6 @@ export default function DemoPage() {
 
           {/* RIGHT COLUMN - Camera Feed and Feedback (6/12 columns) */}
           <div className="lg:col-span-6 space-y-6">
-            <div className="p-4 bg-purple-100 border border-purple-300 rounded-lg">
-              <p className="text-purple-800 font-bold">RIGHT COLUMN - CAMERA FEED & FEEDBACK</p>
-            </div>
             
             {/* Live Camera Feed */}
             <Card>
@@ -394,35 +466,40 @@ export default function DemoPage() {
                   </div>
                 </div>
 
-                <div className="mb-4">
-                  <Button 
-                    className="w-full" 
-                    variant={isPlaying ? "destructive" : "default"}
-                    onClick={togglePlaying}
-                  >
-                    {isPlaying ? (
-                      <>
-                        <Pause className="h-4 w-4 mr-2" />
-                        Stop lesson
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Start lesson
-                      </>
-                    )}
-                  </Button>
-                </div>
-
                 <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
                   {isPlaying && cameraPermission === "granted" ? (
                     <>
+                      {/* Local Camera Feed - Small overlay */}
                       <video
                         ref={videoRef}
                         autoPlay
                         muted
+                        playsInline
                         className="absolute bottom-4 right-4 w-48 h-36 object-cover rounded border-2 border-white/50 z-10"
                       />
+                      
+                      {/* Django Video Stream - Main display */}
+                      <img
+                        ref={streamImgRef}
+                        className="w-full h-full object-cover"
+                        alt="Processed camera feed"
+                        style={{ display: isStreaming ? "block" : "none" }}
+                      />
+                      
+                      {/* Fallback to local camera if Django stream fails */}
+                      {!isStreaming && (
+                        <video
+                          autoPlay
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                          ref={(el) => {
+                            if (el && cameraStream) {
+                              el.srcObject = cameraStream
+                            }
+                          }}
+                        />
+                      )}
 
                       {/* Paper zone overlays */}
                       <div className="absolute inset-0 grid grid-cols-4 grid-rows-3 gap-1 p-4">
@@ -451,7 +528,7 @@ export default function DemoPage() {
                         <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-lg mb-2">Camera Feed</p>
                         <p className="text-sm">
-                          {cameraPermission === "denied" ? "Camera access denied" : 'Click "Start lesson" to begin'}
+                          {cameraPermission === "denied" ? "Camera access denied" : 'Click "Start Demo" to begin'}
                         </p>
                       </div>
                     </div>
