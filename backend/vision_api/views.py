@@ -2,9 +2,10 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.http import StreamingHttpResponse
-from .utils import parse_letter_notes_from_url
+from django.http import StreamingHttpResponse, HttpResponse
+from .utils import parse_letter_notes_from_url, parse_notes_from_pdf_url, get_pdf_page_images_from_url, get_song_title_from_noobnotes_url, find_and_parse_pdf_from_makingmusicfun
 from .gemini_integration import map_notes_to_shapes, generate_lesson_plan, generate_encouragement_feedback, get_note_sequence_for_demo
+import io
 import cv2
 import json
 import base64
@@ -293,3 +294,136 @@ class ProgressTrackingView(APIView):
                 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ParsePdfNotesView(APIView):
+    """
+    API endpoint to parse sheet music from a PDF URL, generate shapes,
+    and create a lesson plan.
+    """
+    def post(self, request):
+        pdf_url = request.data.get('url')
+        song_title = request.data.get('song_title', 'PDF Song')
+
+        if not pdf_url:
+            return Response({'error': 'PDF URL is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # 1. Parse text from the PDF URL
+            pdf_text_pages = parse_notes_from_pdf_url(pdf_url)
+            if any("Error:" in page for page in pdf_text_pages):
+                return Response({'error': pdf_text_pages[0]}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Combine text from all pages into one block for processing
+            full_text = " ".join(pdf_text_pages)
+
+            # 2. Extract note tokens from the text (this is a simplified approach)
+            import re
+            token_pattern = re.compile(r"\b[A-G](?:#|b)?\b", re.IGNORECASE)
+            parsed_notes = [token_pattern.findall(full_text)] # Treat all notes as one sequence
+
+            if not parsed_notes or not parsed_notes[0]:
+                return Response({'error': 'No musical notes found in the PDF text.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 3. Generate shapes using your existing Gemini function
+            shapes = map_notes_to_shapes(parsed_notes)
+            if isinstance(shapes, dict) and "error" in shapes:
+                return Response({'error': 'Shape generation failed', 'details': shapes}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # 4. Generate lesson plan
+            lesson_plan = generate_lesson_plan(parsed_notes, shapes, song_title)
+            if isinstance(lesson_plan, dict) and "error" in lesson_plan:
+                return Response({'error': 'Lesson plan generation failed', 'details': lesson_plan}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            return Response({
+                'song_title': song_title,
+                'parsed_notes': parsed_notes,
+                'shapes': shapes,
+                'lesson_plan': lesson_plan
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class PdfImageView(APIView):
+    """
+    API endpoint to retrieve a specific page of a PDF as an image.
+    """
+    def get(self, request):
+        pdf_url = request.query_params.get('url')
+        page_num = int(request.query_params.get('page', 1)) # Default to first page
+
+        if not pdf_url:
+            return Response({'error': 'PDF URL is required as a query parameter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # On Windows, you might need to specify the Poppler path if not in system PATH
+            # poppler_path = r"C:\path\to\poppler\bin"
+            # images = get_pdf_page_images_from_url(pdf_url, poppler_path=poppler_path)
+            
+            images = get_pdf_page_images_from_url(pdf_url)
+
+            if not images or isinstance(images[0], str): # Check for error
+                return Response({'error': images[0]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            if page_num > len(images) or page_num < 1:
+                return Response({'error': f'Invalid page number. PDF has {len(images)} pages.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Get the requested page (adjust for 0-based index)
+            image = images[page_num - 1]
+            
+            # Save the image to a memory buffer
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG')
+            buffer.seek(0)
+            
+            # Return the image as an HTTP response
+            return HttpResponse(buffer, content_type='image/jpeg')
+
+        except Exception as e:
+            return Response({'error': f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class AutoParsePdfView(APIView):
+    """
+    Takes a noobnotes.net URL, finds the corresponding sheet music PDF
+    on makingmusicfun.net, and processes it into a lesson plan.
+    """
+    def post(self, request):
+        noobnotes_url = request.data.get('url')
+
+        if not noobnotes_url:
+            return Response({'error': 'noobnotes.net URL is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 1. Get the song title from the noobnotes URL
+            song_title = get_song_title_from_noobnotes_url(noobnotes_url)
+            if song_title == "Unknown Song Title":
+                return Response({'error': 'Could not extract a valid song title.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 2. Find and parse the PDF from makingmusicfun.net
+            pdf_text_pages = find_and_parse_pdf_from_makingmusicfun(song_title)
+            if any("Error:" in page for page in pdf_text_pages):
+                return Response({'error': pdf_text_pages[0]}, status=status.HTTP_400_BAD_REQUEST)
+
+            full_text = " ".join(pdf_text_pages)
+            
+            # 3. Process the extracted text through your existing pipeline
+            import re
+            token_pattern = re.compile(r"\b[A-G](?:#|b)?\b", re.IGNORECASE)
+            parsed_notes = [token_pattern.findall(full_text)]
+            
+            if not parsed_notes or not parsed_notes[0]:
+                return Response({'error': 'No musical notes found in the automatically parsed PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            shapes = map_notes_to_shapes(parsed_notes)
+            lesson_plan = generate_lesson_plan(parsed_notes, shapes, song_title)
+            
+            return Response({
+                'source_url': noobnotes_url,
+                'found_song_title': song_title,
+                'parsed_notes': parsed_notes,
+                'shapes': shapes,
+                'lesson_plan': lesson_plan
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': f"An overall error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

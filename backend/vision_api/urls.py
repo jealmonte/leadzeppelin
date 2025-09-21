@@ -1,5 +1,7 @@
 from django.urls import path
-from .views import VideoStreamView, SquareDetectionView, InstrumentConfigView, ParseNotesView, GenerateLessonView, WrongNoteHandlerView, DemoModeView, ProgressTrackingView
+from .views import (VideoStreamView, SquareDetectionView, InstrumentConfigView, 
+                    ParseNotesView, GenerateLessonView, WrongNoteHandlerView, 
+                    DemoModeView, ProgressTrackingView, ParsePdfNotesView, PdfImageView, AutoParsePdfView)
 
 app_name = 'vision_api'
 
@@ -12,4 +14,7 @@ urlpatterns = [
     path('wrong-note/', WrongNoteHandlerView.as_view(), name='wrong-note'),
     path('demo-mode/', DemoModeView.as_view(), name='demo-mode'),
     path('progress/', ProgressTrackingView.as_view(), name='progress'),
+    path('parse-pdf-notes/', ParsePdfNotesView.as_view(), name='parse-pdf-notes'),
+    path('pdf-image/', PdfImageView.as_view(), name='pdf-image'),
+    path('auto-parse-pdf/', AutoParsePdfView.as_view(), name='auto-parse-pdf'),
 ]
