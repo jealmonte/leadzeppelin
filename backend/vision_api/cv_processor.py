@@ -6,48 +6,192 @@ import time
 
 
 class SquareDetector:
-    def __init__(self):
+    def __init__(self, instrument_type="piano"):
         self.sound_cooldown = {}
         self.registered_square_positions = {}
         self.finger_in_square = {}
         self.frame_count = 0
         
+        # Instrument configuration
+        self.instrument_type = instrument_type
+        
         # Square-to-note mapping
-        self.square_note_assignments = {}  # Will map square positions to specific notes
-        self.available_notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B']  # Configurable note sequence
+        self.square_note_assignments = {}
+        self.available_notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
         
         # Initialize pygame for sound
         pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
-        self.piano_notes = self.load_piano_sounds()
+        self.instrument_sounds = self.load_instrument_sounds()
         
+    def load_instrument_sounds(self):
+        """Load sounds based on instrument type"""
+        if self.instrument_type == "piano":
+            return self.load_piano_sounds()
+        elif self.instrument_type == "drums":
+            return self.load_drum_sounds()
+        elif self.instrument_type == "flute":
+            return self.load_flute_sounds()
+        else:
+            return self.load_piano_sounds()  # Default fallback
+    
     def load_piano_sounds(self):
         """Load piano note sounds"""
         notes = {}
-        # Create a wider range of notes to support different scales
         note_names = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
         base_frequency = 261.63  # C4
         
         for i, note in enumerate(note_names):
             frequency = base_frequency * (2 ** (i / 12))
-            notes[note] = self.generate_tone(frequency, 0.5)
+            notes[note] = self.generate_piano_tone(frequency, 0.8)
         
         return notes
     
-    def generate_tone(self, frequency, duration):
-        """Generate a simple sine wave tone"""
+    def load_drum_sounds(self):
+        """Load drum sounds - different percussion for each 'note'"""
+        drums = {}
+        # Map musical notes to drum sounds with different frequencies and characteristics
+        drum_mapping = {
+            'C': {'freq': 80, 'type': 'kick'},      # Kick drum
+            'D': {'freq': 120, 'type': 'snare'},    # Snare
+            'E': {'freq': 200, 'type': 'hihat'},    # Hi-hat
+            'F': {'freq': 150, 'type': 'tom1'},     # Tom 1
+            'G': {'freq': 100, 'type': 'tom2'},     # Tom 2
+            'A': {'freq': 250, 'type': 'crash'},    # Crash
+            'B': {'freq': 220, 'type': 'ride'},     # Ride
+            'Db': {'freq': 80, 'type': 'kick'},     # Alternative kick
+            'Eb': {'freq': 140, 'type': 'snare'},   # Alternative snare
+            'Gb': {'freq': 180, 'type': 'tom3'},    # Tom 3
+            'Ab': {'freq': 220, 'type': 'hihat'},   # Open hi-hat
+            'Bb': {'freq': 280, 'type': 'crash'}    # Splash
+        }
+        
+        for note, drum_info in drum_mapping.items():
+            drums[note] = self.generate_drum_sound(drum_info['freq'], drum_info['type'])
+        
+        return drums
+    
+    def load_flute_sounds(self):
+        """Load flute sounds - pure sine waves with harmonic overtones"""
+        notes = {}
+        note_names = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+        base_frequency = 523.25  # C5 (higher octave for flute)
+        
+        for i, note in enumerate(note_names):
+            frequency = base_frequency * (2 ** (i / 12))
+            notes[note] = self.generate_flute_tone(frequency, 1.0)
+        
+        return notes
+    
+    def generate_piano_tone(self, frequency, duration):
+        """Generate piano-like tone with attack and decay"""
         sample_rate = 22050
         frames = int(duration * sample_rate)
         arr = np.zeros(frames)
         
         for i in range(frames):
-            arr[i] = np.sin(2 * np.pi * frequency * i / sample_rate)
+            # Piano has complex harmonics
+            fundamental = np.sin(2 * np.pi * frequency * i / sample_rate)
+            second_harmonic = 0.5 * np.sin(2 * np.pi * frequency * 2 * i / sample_rate)
+            third_harmonic = 0.25 * np.sin(2 * np.pi * frequency * 3 * i / sample_rate)
+            
+            # Apply envelope (attack and decay)
+            envelope = np.exp(-3 * i / frames)  # Exponential decay
+            if i < frames * 0.1:  # Attack phase
+                envelope *= (i / (frames * 0.1))
+            
+            arr[i] = (fundamental + second_harmonic + third_harmonic) * envelope
         
-        arr = (arr * 32767).astype(np.int16)
+        arr = (arr * 16383).astype(np.int16)  # Reduced volume
         stereo_arr = np.zeros((frames, 2), dtype=np.int16)
         stereo_arr[:, 0] = arr
         stereo_arr[:, 1] = arr
         
         return pygame.sndarray.make_sound(stereo_arr)
+    
+    def generate_drum_sound(self, frequency, drum_type):
+        """Generate drum sounds with different characteristics"""
+        sample_rate = 22050
+        duration = 0.3  # Shorter duration for drums
+        frames = int(duration * sample_rate)
+        arr = np.zeros(frames)
+        
+        if drum_type == 'kick':
+            # Low frequency with quick decay
+            for i in range(frames):
+                envelope = np.exp(-8 * i / frames)
+                arr[i] = np.sin(2 * np.pi * frequency * i / sample_rate) * envelope
+        
+        elif drum_type == 'snare':
+            # Mix of tone and noise
+            for i in range(frames):
+                envelope = np.exp(-5 * i / frames)
+                tone = np.sin(2 * np.pi * frequency * i / sample_rate)
+                noise = np.random.normal(0, 0.3)
+                arr[i] = (0.3 * tone + 0.7 * noise) * envelope
+        
+        elif drum_type == 'hihat':
+            # High frequency noise
+            for i in range(frames):
+                envelope = np.exp(-10 * i / frames)
+                noise = np.random.normal(0, 0.5)
+                high_freq = np.sin(2 * np.pi * frequency * i / sample_rate)
+                arr[i] = (0.2 * high_freq + 0.8 * noise) * envelope
+        
+        else:  # toms, crash, ride
+            # Metallic sound with overtones
+            for i in range(frames):
+                envelope = np.exp(-4 * i / frames)
+                fundamental = np.sin(2 * np.pi * frequency * i / sample_rate)
+                overtone = 0.3 * np.sin(2 * np.pi * frequency * 1.6 * i / sample_rate)
+                arr[i] = (fundamental + overtone) * envelope
+        
+        arr = (arr * 20000).astype(np.int16)  # Higher volume for drums
+        stereo_arr = np.zeros((frames, 2), dtype=np.int16)
+        stereo_arr[:, 0] = arr
+        stereo_arr[:, 1] = arr
+        
+        return pygame.sndarray.make_sound(stereo_arr)
+    
+    def generate_flute_tone(self, frequency, duration):
+        """Generate flute-like tone - pure and airy"""
+        sample_rate = 22050
+        frames = int(duration * sample_rate)
+        arr = np.zeros(frames)
+        
+        for i in range(frames):
+            # Flute is mostly fundamental with some second harmonic
+            fundamental = np.sin(2 * np.pi * frequency * i / sample_rate)
+            second_harmonic = 0.2 * np.sin(2 * np.pi * frequency * 2 * i / sample_rate)
+            
+            # Add slight breathiness (noise)
+            breath = np.random.normal(0, 0.05)
+            
+            # Gentle attack and sustain
+            if i < frames * 0.15:  # Attack
+                envelope = i / (frames * 0.15)
+            elif i > frames * 0.8:  # Release
+                envelope = (frames - i) / (frames * 0.2)
+            else:  # Sustain
+                envelope = 1.0
+            
+            arr[i] = (fundamental + second_harmonic + breath) * envelope
+        
+        arr = (arr * 12000).astype(np.int16)  # Moderate volume
+        stereo_arr = np.zeros((frames, 2), dtype=np.int16)
+        stereo_arr[:, 0] = arr
+        stereo_arr[:, 1] = arr
+        
+        return pygame.sndarray.make_sound(stereo_arr)
+    
+    def get_instrument_display_name(self):
+        """Get display name for the instrument"""
+        display_names = {
+            "piano": "🎹 Piano",
+            "drums": "🥁 Drums", 
+            "flute": "🪈 Flute"
+        }
+        return display_names.get(self.instrument_type, f"🎵 {self.instrument_type.title()}")
+    
     
     def detect_duplicate_notes(self):
         """Check for duplicate note assignments and return True if found"""
@@ -379,39 +523,55 @@ class SquareDetector:
             print(f"🎵 Playing assigned note {note} for square {square_id}")
         else:
             print(f"⚠️ Note {note} not found in piano_notes")
+
+
+    def play_instrument_note(self, square_id):
+        """Play the specifically assigned note for this square using current instrument"""
+        current_time = time.time()
+        
+        if square_id in self.sound_cooldown:
+            if current_time - self.sound_cooldown[square_id] < 0.4:
+                return
+        
+        # Get the assigned note for this square
+        note = self.get_note_for_square(square_id)
+        
+        # Play the assigned note with current instrument
+        if note in self.instrument_sounds:
+            self.instrument_sounds[note].play()
+            self.sound_cooldown[square_id] = current_time
+            
+            instrument_name = self.get_instrument_display_name()
+            print(f"🎵 Playing {instrument_name} note {note} for square {square_id}")
+        else:
+            print(f"⚠️ Note {note} not found in {self.instrument_type} sounds")
     
     def process_frame(self, frame):
-        """Main processing function with scale-based assignment"""
+        """Main processing function - same logic, different sounds"""
         self.frame_count += 1
         
-        if self.frame_count < 3:  # Start quickly
+        if self.frame_count < 3:
             return frame, [], [], np.zeros((frame.shape[0], frame.shape[1]), dtype=np.uint8)
         
-        # Detect small squares only
+        # All the existing square detection logic remains the same
         detected_squares, thresh = self.detect_small_squares_only(frame)
-        
-        # Register stable squares
         stable_squares = self.register_stable_squares(detected_squares)
-        
-        # Assign notes to stable squares (always uses scale sequence)
         self.assign_notes_to_squares(stable_squares)
         
-        # Additional safety check every 20 frames
+        # Safety check every 20 frames
         if self.frame_count % 20 == 0 and stable_squares:
-            print("🔍 SAFETY CHECK: Verifying scale assignments...")
             if self.detect_duplicate_notes():
-                print("🚨 SAFETY: Duplicate notes found during check!")
                 self.force_scale_based_assignment(stable_squares)
         
         # Detect finger touches
         finger_touches = self.detect_finger_touches(frame, stable_squares)
         
-        # Play sounds immediately
+        # Play sounds with current instrument
         for touch in finger_touches:
             if touch['type'] == 'touch_start':
-                self.play_piano_note(touch['square_id'])
+                self.play_instrument_note(touch['square_id'])  # Changed method name
         
-        # Draw results
+        # Enhanced visualization with instrument info
         result_frame = frame.copy()
         
         # Draw detected squares (yellow)
@@ -421,15 +581,12 @@ class SquareDetector:
             cv2.putText(result_frame, "DETECTED", (x-30, y-15), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
         
-        # Draw stable squares (green) with note labels
+        # Draw stable squares with instrument-specific info
         for square in stable_squares:
             x, y, w, h = square['bbox']
             cv2.rectangle(result_frame, (x, y), (x + w, y + h), (0, 255, 0), 4)
             
-            # Get assigned note for this square
             assigned_note = self.get_note_for_square(square['id'])
-            
-            # Show note assignment prominently
             cv2.putText(result_frame, f"NOTE: {assigned_note}", (x, y-30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
@@ -438,34 +595,15 @@ class SquareDetector:
             cv2.putText(result_frame, f"READY:{seen_count}", (x, y-10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
             
-            # Show if being touched
             if square['id'] in self.finger_in_square:
                 cv2.rectangle(result_frame, (x-5, y-5), (x + w + 5, y + h + 5), (0, 0, 255), 4)
                 cv2.putText(result_frame, f"PLAYING {assigned_note}!", (x-15, y + h + 25), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
-        # Enhanced stats with scale information
-        cv2.putText(result_frame, f"Frame: {self.frame_count} | Squares: {len(stable_squares)} | Scale: {' '.join(self.available_notes)}", 
+        # Display instrument and scale info
+        instrument_display = self.get_instrument_display_name()
+        cv2.putText(result_frame, f"Instrument: {instrument_display} | Squares: {len(stable_squares)} | Scale: {' '.join(self.available_notes)}", 
                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        
-        # Show scale mapping status
-        has_duplicates = self.detect_duplicate_notes()
-        duplicate_status = "❌ DUPLICATES!" if has_duplicates else "✅ SCALE OK"
-        cv2.putText(result_frame, f"Status: {duplicate_status}", 
-                   (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255) if has_duplicates else (0, 255, 0), 1)
-        
-        if len(stable_squares) > 0:
-            # Sort squares for consistent display
-            sorted_squares = sorted(stable_squares, key=lambda sq: (sq['center'][1] // 100, sq['center'][0]))
-            note_assignments = [f"{i+1}:{self.get_note_for_square(sq['id'])}" for i, sq in enumerate(sorted_squares)]
-            cv2.putText(result_frame, f"Scale Mapping: {' | '.join(note_assignments)}", 
-                       (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            cv2.putText(result_frame, "Touch squares to play scale notes!", 
-                       (10, 105), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-        else:
-            cv2.putText(result_frame, "Draw small squares on paper (3-5cm size)", 
-                       (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        
         return result_frame, detected_squares, finger_touches, thresh
 
 
