@@ -1,197 +1,205 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Camera, Play, Pause, Volume2, Settings, BookOpen, Music, MessageSquare } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import Image from "next/image"
+import { Slider } from "@/components/ui/slider"
+import { Play, Pause, Camera, CameraOff, Volume2, ChevronDown, ChevronUp, Settings, Search } from "lucide-react"
+import Navbar from "@/components/navbar"
 
-const LeadZeppelinLogo = ({ size = 24 }: { size?: number }) => (
-  <Image
-    src="/images/lead-zeppelin-logo.png"
-    alt="Lead Zeppelin Logo"
-    width={size}
-    height={size}
-    className={`h-${size / 4} w-${size / 4}`}
-    style={{
-      filter:
-        "brightness(0) saturate(100%) invert(12%) sepia(89%) saturate(2851%) hue-rotate(346deg) brightness(95%) contrast(95%)",
-    }}
-  />
-)
-
-export default function DemoPage() {
-  const [isPlaying, setIsPlaying] = useState(false)
+export default function LiveDemo() {
   const [selectedInstrument, setSelectedInstrument] = useState("piano")
-  const [volume, setVolume] = useState([75])
-  const [activeNotes, setActiveNotes] = useState<number[]>([])
-  const [cameraPermission, setCameraPermission] = useState<"granted" | "denied" | "pending">("pending")
+  const [selectedLesson, setSelectedLesson] = useState("song-x-artist")
+  const [isPlaying, setIsPlaying] = useState(false)
   const [cameraEnabled, setCameraEnabled] = useState(false)
-  const [songUrl, setSongUrl] = useState("")
-  const [currentLesson, setCurrentLesson] = useState("Mary Had A Little Lamb")
-  const [nextNotes, setNextNotes] = useState(["C", "D", "E", "F"])
-  const [aiFeedback, setAiFeedback] = useState("Great job! You're playing the notes correctly. Keep up the rhythm!")
+  const [audioVolume, setAudioVolume] = useState([85])
+  const [playedNotes, setPlayedNotes] = useState(['C', 'E', 'F'])
+  const [nextNotes] = useState(['G', 'A', 'B', 'C'])
+  const [currentSong, setCurrentSong] = useState("Song X - Artist")
+  const [sheetMusicUrl, setSheetMusicUrl] = useState("")
+  const [lessonSearchTerm, setLessonSearchTerm] = useState("")
+  
+  // Collapsible states - ADVANCED MENU HIDDEN BY DEFAULT
+  const [isPlaybackOpen, setIsPlaybackOpen] = useState(true)
+  const [isCameraOpen, setIsCameraOpen] = useState(true)
+  const [isAdvancedMenuOpen, setIsAdvancedMenuOpen] = useState(false)
+  
+  // Advanced settings
+  const [numberOfSquares, setNumberOfSquares] = useState(8)
+  const [selectedScale, setSelectedScale] = useState("major")
+
   const videoRef = useRef<HTMLVideoElement>(null)
-  const router = useRouter()
+  const notesScrollRef = useRef<HTMLDivElement>(null)
 
+  // Only Piano, Flute, and Drums with emojis
   const instruments = [
-    { value: "piano", label: "Piano", icon: <LeadZeppelinLogo size={20} /> },
-    { value: "guitar", label: "Guitar", icon: <LeadZeppelinLogo size={20} />, toBe: true },
-    { value: "violin", label: "Violin", icon: <LeadZeppelinLogo size={20} />, toBe: true },
-    { value: "drums", label: "Drums", icon: <LeadZeppelinLogo size={20} />, toBe: true },
-    { value: "flute", label: "Flute", icon: <LeadZeppelinLogo size={20} />, toBe: true },
-    { value: "saxophone", label: "Saxophone", icon: <LeadZeppelinLogo size={20} />, toBe: true },
+    { value: "piano", label: "🎹 Piano" },
+    { value: "flute", label: "🪈 Flute" },
+    { value: "drums", label: "🥁 Drums" }
   ]
 
+  // Comprehensive musical scales
+  const getScaleOptions = (instrument: string) => {
+    switch (instrument) {
+      case "piano":
+        return [
+          { value: "major", label: "Major Scale" },
+          { value: "minor", label: "Natural Minor Scale" },
+          { value: "harmonic-minor", label: "Harmonic Minor Scale" },
+          { value: "melodic-minor", label: "Melodic Minor Scale" },
+          { value: "pentatonic-major", label: "Major Pentatonic Scale" },
+          { value: "pentatonic-minor", label: "Minor Pentatonic Scale" },
+          { value: "blues-major", label: "Major Blues Scale" },
+          { value: "blues-minor", label: "Minor Blues Scale" },
+          { value: "chromatic", label: "Chromatic Scale" },
+          { value: "whole-tone", label: "Whole Tone Scale" },
+          { value: "dorian", label: "Dorian Mode" },
+          { value: "phrygian", label: "Phrygian Mode" },
+          { value: "lydian", label: "Lydian Mode" },
+          { value: "mixolydian", label: "Mixolydian Mode" }
+        ]
+      case "flute":
+        return [
+          { value: "major", label: "Major Scale" },
+          { value: "minor", label: "Natural Minor Scale" },
+          { value: "harmonic-minor", label: "Harmonic Minor Scale" },
+          { value: "melodic-minor", label: "Melodic Minor Scale" },
+          { value: "pentatonic-major", label: "Major Pentatonic Scale" },
+          { value: "pentatonic-minor", label: "Minor Pentatonic Scale" },
+          { value: "chromatic", label: "Chromatic Scale" },
+          { value: "whole-tone", label: "Whole Tone Scale" },
+          { value: "dorian", label: "Dorian Mode" },
+          { value: "phrygian", label: "Phrygian Mode" },
+          { value: "lydian", label: "Lydian Mode" },
+          { value: "mixolydian", label: "Mixolydian Mode" }
+        ]
+      case "drums":
+        return [
+          { value: "single-stroke-roll", label: "Single Stroke Roll" },
+          { value: "double-stroke-roll", label: "Double Stroke Roll" },
+          { value: "paradiddle", label: "Single Paradiddle" },
+          { value: "flam", label: "Flam" },
+          { value: "drag", label: "Drag" },
+          { value: "five-stroke-roll", label: "5 Stroke Roll" },
+          { value: "seven-stroke-roll", label: "7 Stroke Roll" },
+          { value: "nine-stroke-roll", label: "9 Stroke Roll" },
+          { value: "flamacue", label: "Flamacue" },
+          { value: "ruff", label: "Ruff" }
+        ]
+      default:
+        return [{ value: "major", label: "Major Scale" }]
+    }
+  }
+
+  // Lesson list
   const lessons = [
-    { name: "Mary Had A Little Lamb", difficulty: "Beginner", notes: 3, description: "Simple 3-note configuration perfect for beginners" },
-    { name: "Twinkle Twinkle Little Star", difficulty: "Beginner", notes: 5, description: "Classic nursery rhyme with 5-note range" },
-    { name: "Happy Birthday", difficulty: "Beginner", notes: 6, description: "Celebrate with this 6-note birthday song" },
-    { name: "Full Chromatic Scale", difficulty: "Advanced", notes: 12, description: "Complete 12-note setup for advanced playing" },
-    { name: "Ode to Joy", difficulty: "Intermediate", notes: 8, description: "Beethoven's famous melody with 8-note range" },
-    { name: "Canon in D", difficulty: "Advanced", notes: 10, description: "Pachelbel's beautiful canon arrangement" },
+    { value: "song-x-artist", label: "Song X - Artist", artist: "Various Artists" },
+    { value: "twinkle-star", label: "Twinkle Little Star", artist: "Traditional" },
+    { value: "happy-birthday", label: "Happy Birthday", artist: "Traditional" },
+    { value: "mary-lamb", label: "Mary Had a Little Lamb", artist: "Traditional" },
+    { value: "ode-joy", label: "Ode to Joy", artist: "Beethoven" },
+    { value: "fur-elise", label: "Für Elise", artist: "Beethoven" },
+    { value: "canon-d", label: "Canon in D", artist: "Pachelbel" },
+    { value: "moonlight", label: "Moonlight Sonata", artist: "Beethoven" },
+    { value: "amazing-grace", label: "Amazing Grace", artist: "Traditional" },
+    { value: "somewhere-rainbow", label: "Somewhere Over the Rainbow", artist: "Judy Garland" }
   ]
 
-  const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+  // Filter lessons based on search term
+  const filteredLessons = lessons.filter(lesson =>
+    lesson.label.toLowerCase().includes(lessonSearchTerm.toLowerCase()) ||
+    lesson.artist.toLowerCase().includes(lessonSearchTerm.toLowerCase())
+  )
 
-  // Simulate camera access
+  // Simulate real-time note playing
   useEffect(() => {
-    const requestCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-        }
-        setCameraPermission("granted")
-      } catch (error) {
-        setCameraPermission("denied")
-      }
-    }
-
     if (isPlaying) {
-      requestCamera()
+      const interval = setInterval(() => {
+        setPlayedNotes(prev => {
+          const newNote = nextNotes[Math.floor(Math.random() * nextNotes.length)]
+          const updated = [...prev, newNote]
+          
+          setTimeout(() => {
+            if (notesScrollRef.current) {
+              notesScrollRef.current.scrollLeft = notesScrollRef.current.scrollWidth
+            }
+          }, 100)
+          
+          return updated.slice(-10)
+        })
+      }, 2000)
+      
+      return () => clearInterval(interval)
     }
-  }, [isPlaying])
+  }, [isPlaying, nextNotes])
 
-  // Simulate note detection
-  useEffect(() => {
-    if (!isPlaying) return
-
-    const interval = setInterval(() => {
-      // Simulate random note detection
-      const randomNotes = Array.from({ length: Math.floor(Math.random() * 3) + 1 }, () =>
-        Math.floor(Math.random() * 12),
-      )
-      setActiveNotes(randomNotes)
-
-      // Clear notes after a short duration
-      setTimeout(() => setActiveNotes([]), 500)
-    }, 1500)
-
-    return () => clearInterval(interval)
-  }, [isPlaying])
-
-  const togglePlaying = () => {
-    setIsPlaying(!isPlaying)
-    if (!isPlaying) {
-      setActiveNotes([])
-    }
-  }
-
-  const selectLesson = (lessonName: string) => {
-    setCurrentLesson(lessonName)
-    // Update next notes based on lesson
-    if (lessonName === "Mary Had A Little Lamb") {
-      setNextNotes(["E", "D", "C", "D"])
-    } else if (lessonName === "Twinkle Twinkle Little Star") {
-      setNextNotes(["C", "C", "G", "G"])
-    } else {
-      setNextNotes(["C", "D", "E", "F"])
+  const enableCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+      setCameraEnabled(true)
+    } catch (error) {
+      console.error('Camera access denied:', error)
     }
   }
 
-  const handleSongUrlSubmit = () => {
-    // This would integrate with the backend to parse notes
-    console.log("Parsing song from URL:", songUrl)
-    setAiFeedback("Analyzing sheet music... Please wait while we process the notes.")
+  const disableCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
+      tracks.forEach(track => track.stop())
+      videoRef.current.srcObject = null
+    }
+    setCameraEnabled(false)
+  }
+
+  const toggleCamera = () => cameraEnabled ? disableCamera() : enableCamera()
+  const togglePlayback = () => setIsPlaying(!isPlaying)
+  
+  const handleCustomizeLayout = () => {
+    setIsAdvancedMenuOpen(!isAdvancedMenuOpen)
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 max-w-screen-2xl items-center">
-          <Link href="/" className="flex items-center space-x-2">
-            <LeadZeppelinLogo size={32} />
-            <span className="font-bold text-xl">Lead Zeppelin</span>
-          </Link>
-          <nav className="ml-auto flex items-center space-x-6">
-            <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-              Home
-            </Link>
-            <Link href="#about" className="text-sm font-medium transition-colors hover:text-primary">
-              About Us
-            </Link>
-            <Link href="#features" className="text-sm font-medium transition-colors hover:text-primary">
-              Features
-            </Link>
-            <Link href="/demo" className="text-sm font-medium hover:text-primary transition-colors">
-              Live Demo
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <div className="container mx-auto py-8 px-4">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">🎵 Live Demo - Three Column Layout 🎵</h1>
-          <p className="text-muted-foreground">
+    <div className="h-screen bg-background overflow-hidden flex flex-col">
+      {/* NAVBAR */}
+      <Navbar />
+      
+      {/* MAIN CONTENT - NO SCROLLING */}
+      <div className="flex-1 p-4 overflow-hidden">
+        {/* Compact Header */}
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold mb-1">Live Demo</h1>
+          <p className="text-sm text-muted-foreground">
             Experience real-time paper-to-MIDI conversion with visual feedback and multiple instrument sounds.
           </p>
-          <div className="mt-4 p-4 bg-red-100 border border-red-300 rounded-lg">
-            <p className="text-red-800 font-bold text-lg">🚨 THREE COLUMN LAYOUT - LEFT | MIDDLE | RIGHT 🚨</p>
-          </div>
         </div>
 
-        {/* THREE COLUMN LAYOUT */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* FIXED HEIGHT LAYOUT - FITS SCREEN PERFECTLY */}
+        <div className="grid grid-cols-12 gap-4 h-[calc(100vh-200px)]">
           
-          {/* LEFT COLUMN - Controls (3/12 columns) */}
-          <div className="lg:col-span-3 space-y-6">
-            <div className="p-4 bg-blue-100 border border-blue-300 rounded-lg">
-              <p className="text-blue-800 font-bold">LEFT COLUMN - CONTROLS</p>
-            </div>
+          {/* LEFT COLUMN - 3 columns wide */}
+          <div className="col-span-12 lg:col-span-3 flex flex-col space-y-3 min-h-0">
             
-            {/* Instrument Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <LeadZeppelinLogo size={20} />
-                  Instrument
-                </CardTitle>
-                <CardDescription>Choose your virtual instrument</CardDescription>
+            {/* BOX 1: Currently Playing */}
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-2 py-3">
+                <CardTitle className="text-base">Currently Playing:</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 pb-3">
                 <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select instrument" />
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {instruments.map((instrument) => (
                       <SelectItem key={instrument.value} value={instrument.value}>
-                        <span className="flex items-center gap-2">
-                          {instrument.icon}
-                          {instrument.label}
-                          {instrument.toBe && <span className="text-blue-400 text-xs ml-1">*To Be Added*</span>}
-                        </span>
+                        {instrument.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -199,309 +207,303 @@ export default function DemoPage() {
               </CardContent>
             </Card>
 
-            {/* Playback and Volume Controls */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                  Playback & Audio
-                </CardTitle>
-                <CardDescription>Start or stop the live demo and control volume</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button onClick={togglePlaying} className="w-full" variant={isPlaying ? "destructive" : "default"}>
-                  {isPlaying ? (
-                    <>
-                      <Pause className="h-4 w-4 mr-2" />
-                      Stop Demo
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4 mr-2" />
-                      Start Demo
-                    </>
-                  )}
-                </Button>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm">Volume</span>
-                    <span className="text-sm text-muted-foreground">{volume[0]}%</span>
+            {/* BOX 2: Playback */}
+            <Card className="flex-shrink-0">
+              <CardHeader 
+                className="pb-2 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setIsPlaybackOpen(!isPlaybackOpen)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Playback</CardTitle>
+                    <p className="text-xs text-muted-foreground">Start or Stop Demo</p>
                   </div>
-                  <Slider value={volume} onValueChange={setVolume} max={100} min={0} step={1} className="w-full" />
+                  {isPlaybackOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </div>
-
-                {cameraPermission === "denied" && (
-                  <p className="text-sm text-destructive">
-                    Camera access denied. Please enable camera permissions.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Camera Settings */}
-            <Card className="h-[350px]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Camera className="h-5 w-5" />
-                  Camera Settings
-                </CardTitle>
-                <CardDescription>Configure camera detection settings</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 flex flex-col justify-between h-full">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="camera-toggle">Enable Camera</Label>
-                    <Switch id="camera-toggle" checked={cameraEnabled} onCheckedChange={setCameraEnabled} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="sensitivity">Detection Sensitivity</Label>
-                    <Badge variant="outline">Medium</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="resolution">Camera Resolution</Label>
-                    <Badge variant="outline">1080p</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="framerate">Frame Rate</Label>
-                    <Badge variant="outline">30 FPS</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="quality">Video Quality</Label>
-                    <Badge variant="outline">High</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="stabilization">Image Stabilization</Label>
-                    <Badge variant="outline">On</Badge>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Button className="w-full" variant="outline">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Customize your layout! <span className="text-red-500 font-bold ml-1">**ADVANCED**</span>
-                  </Button>
-                  <div className="text-xs text-muted-foreground text-center">
-                    More camera settings available in advanced mode
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* MIDDLE COLUMN - Lessons (3/12 columns) */}
-          <div className="lg:col-span-3 space-y-6">
-            <div className="p-4 bg-green-100 border border-green-300 rounded-lg">
-              <p className="text-green-800 font-bold">MIDDLE COLUMN - LESSONS</p>
-            </div>
-            
-            {/* Lead Zeppelin Lessons */}
-            <Card className="h-[400px]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  Lead Zeppelin Lessons
-                </CardTitle>
-                <CardDescription>Select a preset configuration to get started quickly</CardDescription>
-              </CardHeader>
-              <CardContent className="overflow-y-auto">
-                <div className="space-y-3">
-                  {lessons.map((lesson) => (
-                    <Button
-                      key={lesson.name}
-                      variant="outline"
-                      className="h-auto p-4 text-left justify-start bg-transparent w-full"
-                      onClick={() => selectLesson(lesson.name)}
-                    >
-                      <div>
-                        <div className="font-semibold text-sm mb-1">{lesson.name}</div>
-                        <div className="text-xs text-muted-foreground mb-2">{lesson.description}</div>
-                        <div className="flex gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {lesson.difficulty}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {lesson.notes} notes
-                          </Badge>
-                        </div>
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Retrieve Sheet Music */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Music className="h-5 w-5" />
-                  Retrieve Sheet Music
-                </CardTitle>
-                <CardDescription>Parse notes from any song URL</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  type="url"
-                  placeholder="https://noobnotes.net/..."
-                  value={songUrl}
-                  onChange={(e) => setSongUrl(e.target.value)}
-                  className="w-full"
-                />
-                <Button 
-                  className="w-full" 
-                  disabled={!songUrl.trim()}
-                  onClick={handleSongUrlSubmit}
-                >
-                  <Music className="h-4 w-4 mr-2" />
-                  Parse Notes
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* RIGHT COLUMN - Camera Feed and Feedback (6/12 columns) */}
-          <div className="lg:col-span-6 space-y-6">
-            <div className="p-4 bg-purple-100 border border-purple-300 rounded-lg">
-              <p className="text-purple-800 font-bold">RIGHT COLUMN - CAMERA FEED & FEEDBACK</p>
-            </div>
-            
-            {/* Live Camera Feed */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Camera className="h-5 w-5" />
-                    Live Camera Feed
-                  </span>
-                  {isPlaying && cameraPermission === "granted" && (
-                    <Badge variant="default" className="flex items-center gap-1">
-                      <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
-                      Recording
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-blue-900">Current Lesson</p>
-                      <p className="text-lg font-semibold text-blue-800">{currentLesson}</p>
-                    </div>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                      Beginner
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <Button 
-                    className="w-full" 
+              {isPlaybackOpen && (
+                <CardContent className="pt-0 pb-3 space-y-3">
+                  <Button
+                    onClick={togglePlayback}
                     variant={isPlaying ? "destructive" : "default"}
-                    onClick={togglePlaying}
+                    size="sm"
+                    className="w-full"
                   >
                     {isPlaying ? (
                       <>
-                        <Pause className="h-4 w-4 mr-2" />
-                        Stop lesson
+                        <Pause className="mr-2 h-3 w-3" />
+                        Stop Demo
                       </>
                     ) : (
                       <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Start lesson
+                        <Play className="mr-2 h-3 w-3" />
+                        Start Demo
                       </>
                     )}
                   </Button>
+                  
+                  {/* Audio Volume Section */}
+                  <div className="border-t pt-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Volume2 className="h-3 w-3" />
+                      <Label className="text-sm font-medium">Audio Volume</Label>
+                    </div>
+                    <Slider
+                      value={audioVolume}
+                      onValueChange={setAudioVolume}
+                      max={100}
+                      step={1}
+                      className="w-full"
+                    />
+                    <div className="text-center text-xs text-muted-foreground mt-1">
+                      {audioVolume[0]}%
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* BOX 3: Camera */}
+            <Card className="flex-1 flex flex-col min-h-0">
+              <CardHeader 
+                className="pb-2 py-3 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
+                onClick={() => setIsCameraOpen(!isCameraOpen)}
+              >
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    Camera
+                  </CardTitle>
+                  {isCameraOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </div>
+              </CardHeader>
+              {isCameraOpen && (
+                <CardContent className="pt-0 pb-3 flex-1 flex flex-col min-h-0">
+                  <div className="flex items-center space-x-2 mb-3 flex-shrink-0">
+                    <Switch
+                      checked={cameraEnabled}
+                      onCheckedChange={toggleCamera}
+                    />
+                    <Label className="text-sm">Enable Camera</Label>
+                  </div>
+                  
+                  {/* Spacer */}
+                  <div className="flex-1 min-h-0" />
+                  
+                  <div className="border-t pt-3 space-y-2 flex-shrink-0">
+                    <Button 
+                      onClick={handleCustomizeLayout}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Settings className="mr-2 h-3 w-3" />
+                      Customize your layout!
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      *Advanced*
+                    </p>
 
-                <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
-                  {isPlaying && cameraPermission === "granted" ? (
-                    <>
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        muted
-                        className="absolute bottom-4 right-4 w-48 h-36 object-cover rounded border-2 border-white/50 z-10"
-                      />
-
-                      {/* Paper zone overlays */}
-                      <div className="absolute inset-0 grid grid-cols-4 grid-rows-3 gap-1 p-4">
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <div
-                            key={i}
-                            className={`
-                              border-2 border-dashed rounded transition-all duration-200
-                              ${activeNotes.includes(i) ? "border-primary bg-primary/20 shadow-lg" : "border-white/50"}
-                            `}
-                          >
-                            {activeNotes.includes(i) && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Badge variant="default" className="text-xs">
-                                  {notes[i]}
-                                </Badge>
-                              </div>
-                            )}
+                    {/* Advanced Menu */}
+                    {isAdvancedMenuOpen && (
+                      <div className="bg-muted/50 rounded-lg p-3 space-y-3 border">
+                        <div>
+                          <Label className="text-xs font-medium">Number of Squares</Label>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Slider
+                              value={[numberOfSquares]}
+                              onValueChange={(value) => setNumberOfSquares(value[0])}
+                              min={4}
+                              max={16}
+                              step={1}
+                              className="flex-1"
+                            />
+                            <span className="text-xs w-8 text-center">{numberOfSquares}</span>
                           </div>
-                        ))}
+                        </div>
+                        
+                        <div>
+                          <Label className="text-xs font-medium">Musical Scale/Set</Label>
+                          <Select value={selectedScale} onValueChange={setSelectedScale}>
+                            <SelectTrigger className="w-full h-8 mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getScaleOptions(selectedInstrument).map((scale) => (
+                                <SelectItem key={scale.value} value={scale.value}>
+                                  {scale.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                    </>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-white/70">
-                      <div className="text-center">
-                        <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg mb-2">Camera Feed</p>
-                        <p className="text-sm">
-                          {cameraPermission === "denied" ? "Camera access denied" : 'Click "Start lesson" to begin'}
-                        </p>
+                    )}
+                    
+                    <Button 
+                      onClick={toggleCamera}
+                      variant="outline" 
+                      size="sm"
+                      className="w-full"
+                    >
+                      🎵 Start Playing
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          </div>
+
+          {/* MIDDLE COLUMN - 3 columns wide */}
+          <div className="col-span-12 lg:col-span-3 flex flex-col space-y-3 min-h-0">
+            
+            {/* LESSONS BOX - ONLY INTERNAL SCROLLING */}
+            <Card className="flex-1 flex flex-col min-h-0">
+              <CardHeader className="pb-2 py-3 flex-shrink-0">
+                <CardTitle className="text-base">Lesson:</CardTitle>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                  <Input
+                    placeholder="Search lessons..."
+                    value={lessonSearchTerm}
+                    onChange={(e) => setLessonSearchTerm(e.target.value)}
+                    className="pl-8 h-8 text-sm"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0 pb-3 flex-1 min-h-0">
+                <div className="h-full overflow-y-auto pr-2 space-y-2">
+                  {filteredLessons.map((lesson) => (
+                    <div
+                      key={lesson.value}
+                      onClick={() => setSelectedLesson(lesson.value)}
+                      className={`p-2 rounded border cursor-pointer transition-colors text-sm hover:bg-muted/50 ${
+                        selectedLesson === lesson.value 
+                          ? 'bg-red-50 border-red-500 border-2'
+                          : 'bg-card border-border'
+                      }`}
+                    >
+                      <div className={`font-medium text-sm ${
+                        selectedLesson === lesson.value ? 'text-red-700' : ''
+                      }`}>
+                        {lesson.label}
                       </div>
+                      <div className={`text-xs ${
+                        selectedLesson === lesson.value ? 'text-red-600' : 'text-muted-foreground'
+                      }`}>
+                        {lesson.artist}
+                      </div>
+                    </div>
+                  ))}
+                  {filteredLessons.length === 0 && (
+                    <div className="text-center text-sm text-muted-foreground py-8">
+                      No lessons found matching "{lessonSearchTerm}"
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Next Notes and AI Feedback */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Next Notes */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Music className="h-5 w-5" />
-                    Next Notes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="text-center p-3 bg-primary/10 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Next Note:</p>
-                      <p className="text-2xl font-bold text-primary">{nextNotes[0]}</p>
-                    </div>
-                    <div className="flex gap-2 justify-center">
-                      {nextNotes.slice(1, 4).map((note, i) => (
-                        <Badge key={i} variant="outline" className="text-sm">
-                          {note}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* URL BOX */}
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-2 py-3">
+                <CardTitle className="text-base">Retrieve Sheet Music</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 pb-3 space-y-2">
+                <div>
+                  <Label className="text-xs">URL:</Label>
+                  <Input
+                    placeholder="http://......net/music"
+                    value={sheetMusicUrl}
+                    onChange={(e) => setSheetMusicUrl(e.target.value)}
+                    className="mt-1 h-8 text-sm"
+                  />
+                </div>
+                <Button variant="outline" size="sm" className="w-full">
+                  Retrieve Sheet Music
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* AI Teacher Feedback */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    AI Teacher Feedback
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm">{aiFeedback}</p>
+          {/* RIGHT COLUMN - 6 columns wide (LARGER FOR CAMERA) */}
+          <div className="col-span-12 lg:col-span-6 min-h-0">
+            <Card className="h-full flex flex-col">
+              <CardHeader className="pb-2 py-3 flex-shrink-0">
+                <CardTitle className="text-base">Currently Playing: {currentSong}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col space-y-3 overflow-hidden p-3">
+                
+                {/* LARGE CAMERA FEED */}
+                <div className="flex-1 min-h-0">
+                  <div className="h-full bg-muted rounded-lg flex items-center justify-center relative overflow-hidden">
+                    {cameraEnabled ? (
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <div className="text-center p-6">
+                        <Camera className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                        <h3 className="text-xl font-semibold mb-2">Live Feed Here</h3>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Camera resolution: 1920x1080 (16:9)
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Enable camera to start
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+
+                {/* NEXT NOTE SECTION */}
+                <div className="flex-shrink-0 border-t pt-2">
+                  <h4 className="text-sm font-medium mb-2">Next Note:</h4>
+                  <div 
+                    ref={notesScrollRef}
+                    className="flex space-x-1 overflow-x-auto pb-1"
+                    style={{ scrollBehavior: 'smooth' }}
+                  >
+                    {playedNotes.map((note, index) => (
+                      <div
+                        key={`played-${index}`}
+                        className="flex-shrink-0 w-8 h-8 border rounded flex items-center justify-center text-xs font-bold bg-green-100 text-green-800 border-green-300"
+                      >
+                        {note}
+                      </div>
+                    ))}
+                    
+                    {nextNotes.slice(0, 4).map((note, index) => (
+                      <div
+                        key={`next-${index}`}
+                        className={`flex-shrink-0 w-8 h-8 border rounded flex items-center justify-center text-xs font-bold ${
+                          index === 0 
+                            ? 'bg-blue-100 text-blue-800 border-blue-300' 
+                            : 'bg-muted border-muted-foreground/20'
+                        }`}
+                      >
+                        {note}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* AI FEEDBACK */}
+                <div className="flex-shrink-0 border-t pt-2">
+                  <h4 className="text-sm font-medium mb-2">*AI teacher feedback goes here*</h4>
+                  <div className="p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                    {isPlaying 
+                      ? "Great job! Keep maintaining steady rhythm." 
+                      : "Start the demo to receive AI guidance."
+                    }
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

@@ -57,9 +57,6 @@ export default function Navbar() {
             >
               Features
             </button>
-            <Link href="/configure" className="text-sm font-medium transition-colors hover:text-primary">
-              Configure
-            </Link>
             <Link href="/demo" className="text-sm font-medium transition-colors hover:text-primary">
               Live Demo
             </Link>
